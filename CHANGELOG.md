@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `JOONS_LISTEN_MIRROR_CMD`: send finished results with any command (JSON array, no shell) instead of a folder copy.
+- A job database from before the `mirror` rename (column `brain_sync`) is migrated in place on start.
 - Error and warning messages of the service, the CLI and the MCP server are now in English. Minutes output stays Korean by design.
 - Documentation of `num_speakers` now matches the code (1 to 12).
 

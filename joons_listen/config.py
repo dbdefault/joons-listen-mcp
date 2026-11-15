@@ -46,7 +46,10 @@ LLM_TIMEOUT = int(os.environ.get("JOONS_LISTEN_LLM_TIMEOUT", "600"))
 
 # 결과 미러링(선택): JOONS_LISTEN_MIRROR_DIR 에 폴더를 주면 끝난 작업의 결과(원본 오디오 제외)를 zip 으로 그 폴더에 복사한다. 비어 있으면 끈다.
 MIRROR_DIR = os.environ.get("JOONS_LISTEN_MIRROR_DIR", "").strip()
-MIRROR_MODE = "folder" if MIRROR_DIR else "off"
+# 또는 JOONS_LISTEN_MIRROR_CMD 에 JSON 배열로 명령을 주면 파일마다 그 명령을 실행한다(예: ["rsync", "-a", "{file}", "host:/dir/"]). {file} 은 보낼 파일 경로로 바뀐다.
+# 셸을 거치지 않고, zip 을 먼저 보낸 뒤 표식(.ok)을 마지막에 보낸다. 명령이 0 이 아닌 값으로 끝나면 다음 주기에 다시 보낸다.
+MIRROR_CMD = os.environ.get("JOONS_LISTEN_MIRROR_CMD", "").strip()
+MIRROR_MODE = "cmd" if MIRROR_CMD else ("folder" if MIRROR_DIR else "off")
 
 STAGES = ["ingest", "vad", "diarize", "asr", "verify", "translate", "minutes", "store"]
 STAGE_WEIGHTS = {"ingest": 5, "vad": 5, "diarize": 15, "asr": 55, "verify": 3, "translate": 7, "minutes": 7, "store": 3}
