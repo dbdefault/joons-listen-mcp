@@ -24,7 +24,7 @@ def _is_local(url: str) -> bool:
 def _req(path: str, body: Optional[Dict] = None, timeout: int = 20) -> Dict:
     url = config.LLM_URL.rstrip("/") + path
     if not _is_local(url):
-        raise LLMError("LLM_UNAVAILABLE", "회의 내용은 로컬 LLM 으로만 보냅니다(JOONS_LISTEN_LLM_URL 은 127.0.0.1 이어야 함)")
+        raise LLMError("LLM_UNAVAILABLE", "meeting text is sent to a local LLM only (JOONS_LISTEN_LLM_URL must be a loopback address)")
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST" if body is not None else "GET")
     try:
@@ -33,9 +33,9 @@ def _req(path: str, body: Optional[Dict] = None, timeout: int = 20) -> Dict:
         with opener.open(req, timeout=timeout) as r:
             return json.loads(r.read().decode("utf-8"))
     except urllib.error.URLError as e:
-        raise LLMError("LLM_UNAVAILABLE", f"로컬 LLM(Ollama)에 연결할 수 없습니다: {e.reason}")
+        raise LLMError("LLM_UNAVAILABLE", f"cannot reach the local LLM (Ollama): {e.reason}")
     except Exception as e:  # noqa: BLE001
-        raise LLMError("LLM_UNAVAILABLE", f"로컬 LLM 호출 실패: {str(e)[:160]}")
+        raise LLMError("LLM_UNAVAILABLE", f"local LLM call failed: {str(e)[:160]}")
 
 
 def available() -> Optional[str]:

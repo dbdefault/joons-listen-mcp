@@ -153,7 +153,7 @@ class JobManager:
             except Exception:  # noqa: BLE001  작업자는 어떤 예외로도 죽지 않는다(한 건 실패가 큐 전체를 멈추면 안 됨)
                 try:
                     if job:
-                        self._update(job, state="error", error=json.dumps({"code": "INTERNAL", "message": "작업자 내부 오류"}, ensure_ascii=False))
+                        self._update(job, state="error", error=json.dumps({"code": "INTERNAL", "message": "internal worker error"}, ensure_ascii=False))
                 except Exception:  # noqa: BLE001
                     pass
                 self.stop.wait(1.0)

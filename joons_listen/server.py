@@ -71,28 +71,28 @@ def find_by_name(name: str, max_depth: int = 3, max_entries: int = 20000) -> Opt
 
 def check_audio_path(raw) -> Path:
     if not raw or not isinstance(raw, str):
-        raise ApiError(400, "BAD_REQUEST", "audio_path 가 필요합니다")
+        raise ApiError(400, "BAD_REQUEST", "audio_path is required")
     p = Path(raw)
     if not p.is_absolute():
         if any(ch in raw for ch in ("/", "\\")):
-            raise ApiError(400, "BAD_REQUEST", "audio_path 는 절대 경로이거나 파일 이름 하나여야 합니다")
+            raise ApiError(400, "BAD_REQUEST", "audio_path must be an absolute path or a bare file name")
         found = find_by_name(raw)  # 파일 이름만 주면 허용 폴더에서 찾는다(ChatGPT·폰에서 경로 없이 부르기 쉽게)
         if found is None:
-            raise ApiError(404, "FILE_NOT_FOUND", f"허용 폴더에서 '{raw}' 파일을 찾지 못했습니다. 녹음 파일을 허용 폴더(inbox, 바탕화면, 다운로드 또는 JOONS_LISTEN_ROOTS 로 지정한 폴더)에 두고 다시 부르세요.")
+            raise ApiError(404, "FILE_NOT_FOUND", f"'{raw}' was not found in the allowed folders. Put the recording in an allowed folder (inbox, Desktop, Downloads or a folder set with JOONS_LISTEN_ROOTS) and try again.")
         p = found
     try:
         rp = p.resolve()
     except Exception:  # noqa: BLE001
-        raise ApiError(400, "BAD_REQUEST", "경로를 해석할 수 없습니다")
+        raise ApiError(400, "BAD_REQUEST", "the path cannot be resolved")
     if not any(_inside(rp, root) for root in config.ALLOWED_ROOTS):
-        raise ApiError(403, "PATH_NOT_ALLOWED", "허용된 폴더 밖의 파일입니다(JOONS_LISTEN_ROOTS 로 허용 폴더를 지정하세요)")
+        raise ApiError(403, "PATH_NOT_ALLOWED", "the file is outside the allowed folders (set them with JOONS_LISTEN_ROOTS)")
     low = str(rp).lower()
     if any(s in low for s in config.SECRET_NAME_PARTS):
-        raise ApiError(403, "PATH_NOT_ALLOWED", "비밀 정보로 보이는 이름의 파일은 처리하지 않습니다")
+        raise ApiError(403, "PATH_NOT_ALLOWED", "files whose names look like secrets are not processed")
     if not rp.is_file():
-        raise ApiError(404, "FILE_NOT_FOUND", "파일을 찾을 수 없습니다")
+        raise ApiError(404, "FILE_NOT_FOUND", "file not found")
     if rp.suffix.lower() not in config.AUDIO_EXTS:
-        raise ApiError(400, "BAD_REQUEST", "지원 형식: " + ", ".join(sorted(config.AUDIO_EXTS)))
+        raise ApiError(400, "BAD_REQUEST", "supported formats: " + ", ".join(sorted(config.AUDIO_EXTS)))
     return rp
 
 
@@ -124,7 +124,7 @@ class Service:
                 else:
                     self._note_sync_fail(jid)
         except Exception as e:  # noqa: BLE001
-            log.warning("동기화 예외 %s: %s", jid, e)
+            log.warning("mirror error %s: %s", jid, e)
             self._note_sync_fail(jid)
             try:
                 self.jobs.set_mirror(jid, "pending")
@@ -144,7 +144,7 @@ class Service:
                         continue
                     self._sync_one(jid)
             except Exception as e:  # noqa: BLE001
-                log.warning("동기화 루프 예외: %s", e)
+                log.warning("mirror loop error: %s", e)
 
     # ---- 핸들러 ----
     def health(self) -> Dict:
@@ -167,52 +167,52 @@ class Service:
     def submit(self, body: Dict) -> Dict:
         kind = body.get("kind", "transcribe")
         if kind not in ("transcribe", "diarize"):
-            raise ApiError(400, "BAD_REQUEST", "kind 는 transcribe 또는 diarize")
+            raise ApiError(400, "BAD_REQUEST", "kind must be transcribe or diarize")
         rp = check_audio_path(body.get("audio_path"))
         lang = body.get("language", "auto") or "auto"
         if lang != "auto" and lang not in LANGS:
-            raise ApiError(400, "BAD_REQUEST", "language 는 auto|zh|ko|en|ja")
+            raise ApiError(400, "BAD_REQUEST", "language must be auto|zh|ko|en|ja")
         eng = body.get("engine", "auto") or "auto"
         if eng not in ("auto", "whisper", "qwen"):
-            raise ApiError(400, "BAD_REQUEST", "engine 은 auto|whisper|qwen")
+            raise ApiError(400, "BAD_REQUEST", "engine must be auto|whisper|qwen")
         ns = body.get("num_speakers")
         if ns is not None and (not isinstance(ns, int) or isinstance(ns, bool) or ns < 1 or ns > 12):
-            raise ApiError(400, "BAD_REQUEST", "num_speakers 는 1~12 정수")
+            raise ApiError(400, "BAD_REQUEST", "num_speakers must be an integer from 1 to 12")
         params = {"audio_path": str(rp), "language": lang, "engine": eng, "diarize": bool(body.get("diarize", True)), "num_speakers": ns, "translate_ko": bool(body.get("translate_ko", False)), "minutes": bool(body.get("minutes", False)), "title": body.get("title"), "dictionary": body.get("dictionary")}
         return {"ok": True, "job_id": self.jobs.submit(kind, params)}
 
     def summarize(self, jid: str, body: Dict) -> Dict:
         j = self.jobs.get(jid)
         if not j:
-            raise ApiError(404, "NOT_FOUND", "job 이 없습니다")
+            raise ApiError(404, "NOT_FOUND", "job not found")
         if j["state"] != "done" or j["kind"] != "transcribe":
-            raise ApiError(409, "NOT_READY", "끝난 전사 job 만 요약할 수 있습니다")
+            raise ApiError(409, "NOT_READY", "only a finished transcription job can be summarized")
         params = {"parent_job_id": jid, "translate_ko": True, "minutes": True, "title": j.get("title")}
         return {"ok": True, "job_id": self.jobs.submit("summarize", params)}
 
     def status(self, jid: str) -> Dict:
         j = self.jobs.get(jid)
         if not j:
-            raise ApiError(404, "NOT_FOUND", "job 이 없습니다")
+            raise ApiError(404, "NOT_FOUND", "job not found")
         return {"ok": True, **j}
 
     def result(self, jid: str, q: Dict) -> Dict:
         j = self.jobs.get(jid)
         if not j:
-            raise ApiError(404, "NOT_FOUND", "job 이 없습니다")
+            raise ApiError(404, "NOT_FOUND", "job not found")
         if j["state"] != "done":
-            raise ApiError(409, "NOT_READY", f"아직 결과가 없습니다(상태 {j['state']})")
+            raise ApiError(409, "NOT_READY", f"no result yet (state {j['state']})")
         fmt = q.get("format", ["md"])[0] or "md"
         if fmt not in FORMATS:
-            raise ApiError(400, "BAD_REQUEST", "format 은 " + "|".join(FORMATS))
+            raise ApiError(400, "BAD_REQUEST", "format must be one of " + "|".join(FORMATS))
         text = self.jobs.result_text(jid, fmt)
         if text is None:
-            raise ApiError(404, "NOT_FOUND", "해당 형식의 결과가 없습니다")
+            raise ApiError(404, "NOT_FOUND", "no result in that format")
         try:
             off = max(0, int(q.get("offset", ["0"])[0]))
             mx = max(1000, min(200000, int(q.get("max_chars", ["20000"])[0])))
         except ValueError:
-            raise ApiError(400, "BAD_REQUEST", "offset·max_chars 는 정수")
+            raise ApiError(400, "BAD_REQUEST", "offset and max_chars must be integers")
         chunk = text[off : off + mx]
         nxt = off + mx if off + mx < len(text) else None
         return {"ok": True, "job_id": jid, "format": fmt, "offset": off, "next_offset": nxt, "total_chars": len(text), "text": chunk}
@@ -237,18 +237,18 @@ def make_handler(svc: Service):
             try:
                 n = int(self.headers.get("Content-Length") or 0)
             except ValueError:
-                raise ApiError(400, "BAD_REQUEST", "Content-Length 가 올바르지 않습니다")
+                raise ApiError(400, "BAD_REQUEST", "invalid Content-Length")
             if n < 0:  # 음수면 read(-1)이 연결이 끊길 때까지 기다리므로 먼저 거절한다
-                raise ApiError(400, "BAD_REQUEST", "Content-Length 가 올바르지 않습니다")
+                raise ApiError(400, "BAD_REQUEST", "invalid Content-Length")
             if n > 1_000_000:
-                raise ApiError(413, "BAD_REQUEST", "본문이 너무 큽니다")
+                raise ApiError(413, "BAD_REQUEST", "request body too large")
             raw = self.rfile.read(n) if n else b"{}"
             try:
                 d = json.loads(raw.decode("utf-8") or "{}")
             except Exception:  # noqa: BLE001
-                raise ApiError(400, "BAD_REQUEST", "JSON 본문을 읽을 수 없습니다")
+                raise ApiError(400, "BAD_REQUEST", "cannot parse the JSON body")
             if not isinstance(d, dict):
-                raise ApiError(400, "BAD_REQUEST", "JSON 객체여야 합니다")
+                raise ApiError(400, "BAD_REQUEST", "the body must be a JSON object")
             return d
 
         def _route(self, method: str) -> Tuple[int, Dict]:
@@ -274,9 +274,9 @@ def make_handler(svc: Service):
                 if len(parts) == 3 and parts[0] == "jobs" and parts[2] == "cancel":
                     st = svc.jobs.cancel(parts[1])
                     if st is None:
-                        raise ApiError(404, "NOT_FOUND", "job 이 없습니다")
+                        raise ApiError(404, "NOT_FOUND", "job not found")
                     return 200, {"ok": True, "state": st}
-            raise ApiError(404, "NOT_FOUND", "없는 주소입니다")
+            raise ApiError(404, "NOT_FOUND", "unknown route")
 
         def _guard(self, method: str) -> None:
             """로컬 웹 페이지가 몰래 부르는 것(교차 출처 요청, DNS 리바인딩)을 막는다."""
@@ -284,11 +284,11 @@ def make_handler(svc: Service):
             port = self.server.server_address[1]
             ok_hosts = {f"127.0.0.1:{port}", f"localhost:{port}", f"[::1]:{port}", "127.0.0.1", "localhost", "[::1]"}
             if host not in ok_hosts:
-                raise ApiError(403, "BAD_REQUEST", "허용되지 않은 Host 입니다")
+                raise ApiError(403, "BAD_REQUEST", "Host header not allowed")
             if self.headers.get("Origin"):
-                raise ApiError(403, "BAD_REQUEST", "브라우저 교차 출처 요청은 받지 않습니다")
+                raise ApiError(403, "BAD_REQUEST", "cross-origin browser requests are refused")
             if method == "POST" and "application/json" not in (self.headers.get("Content-Type") or "").lower():
-                raise ApiError(415, "BAD_REQUEST", "Content-Type 은 application/json 이어야 합니다")
+                raise ApiError(415, "BAD_REQUEST", "Content-Type must be application/json")
 
         def _handle(self, method: str) -> None:
             try:
@@ -311,7 +311,7 @@ def make_handler(svc: Service):
 
 def serve(host: str = config.HOST, port: int = config.PORT) -> None:
     if host not in ("127.0.0.1", "localhost", "::1"):
-        raise SystemExit("보안: JOONS LISTEN 서비스는 루프백에만 묶습니다")
+        raise SystemExit("security: the JOONS LISTEN service binds to loopback only")
     # 포트를 먼저 묶어 서비스가 둘 뜨는 것을 막는다(둘째는 여기서 실패하고, 작업 DB 는 건드리지 않는다)
     holder: Dict = {}
 

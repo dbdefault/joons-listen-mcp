@@ -28,7 +28,7 @@ def find_ffmpeg() -> str:
     if guess.exists():
         for p in guess.glob("ffmpeg*/bin/ffmpeg.exe"):
             return str(p)
-    raise AudioError("AUDIO_DECODE_FAILED", "ffmpeg 를 찾지 못했습니다(JOONS_LISTEN_FFMPEG 또는 PATH 확인)")
+    raise AudioError("AUDIO_DECODE_FAILED", "ffmpeg was not found (set JOONS_LISTEN_FFMPEG or add it to PATH)")
 
 
 def sha256_file(path: Path, chunk: int = 1 << 20) -> str:
@@ -49,14 +49,14 @@ def to_wav16k(src: Path, dst: Path, timeout: int = 3600) -> float:
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except subprocess.TimeoutExpired:
-        raise AudioError("AUDIO_DECODE_FAILED", "오디오 변환이 시간 초과되었습니다")
+        raise AudioError("AUDIO_DECODE_FAILED", "audio conversion timed out")
     if r.returncode != 0 or not dst.exists():
         msg = (r.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-1:] or ["알 수 없는 오류"]
-        raise AudioError("AUDIO_DECODE_FAILED", f"오디오를 읽을 수 없습니다: {msg[0][:200]}")
+        raise AudioError("AUDIO_DECODE_FAILED", f"cannot read the audio: {msg[0][:200]}")
     with wave.open(str(dst), "rb") as w:
         dur = w.getnframes() / float(w.getframerate())
     if dur <= 0.05:
-        raise AudioError("AUDIO_DECODE_FAILED", "오디오 길이가 0 입니다")
+        raise AudioError("AUDIO_DECODE_FAILED", "the audio has zero length")
     return dur
 
 
@@ -65,7 +65,7 @@ def read_wav(path: Path) -> np.ndarray:
 
     data, sr = sf.read(str(path), dtype="float32", always_2d=False)
     if sr != SR:
-        raise AudioError("AUDIO_DECODE_FAILED", f"샘플레이트가 {SR} 가 아닙니다({sr})")
+        raise AudioError("AUDIO_DECODE_FAILED", f"sample rate is not {SR} ({sr})")
     if data.ndim > 1:
         data = data.mean(axis=1)
     return np.ascontiguousarray(data, dtype=np.float32)

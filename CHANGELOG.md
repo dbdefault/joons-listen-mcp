@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Error and warning messages of the service, the CLI and the MCP server are now in English. Minutes output stays Korean by design.
+- Documentation of `num_speakers` now matches the code (1 to 12).
+
 ## 0.1.0 (preview)
 
 First public release, extracted from a private deployment where it ran for real meeting recordings.

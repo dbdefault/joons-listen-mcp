@@ -11,7 +11,7 @@ Status: 0.1.0 Preview. Read [LIMITATIONS.md](LIMITATIONS.md) before relying on i
 ## At a glance
 
 - **What**: a small local service plus a stdio MCP server. You give it a meeting or call recording; it returns a transcript with speaker turns, timestamps, "check this" flags on numbers, prices, dates and product codes, and optionally a Korean translation and minutes written by a local LLM.
-- **For**: people who record meetings or calls (Chinese, Korean, English, mixed) and want the audio to stay on their own machine, and want Claude, ChatGPT-style clients or scripts to drive it through MCP.
+- **For**: people who record meetings or calls (Chinese, Korean, English, mixed) and want the audio to stay on their own machine, and want an MCP client such as Claude Desktop or Claude Code (anything that can start a local stdio server) or a script to drive it. ChatGPT cannot start local stdio servers; it needs a remote MCP endpoint, so put the service behind an MCP gateway you control.
 - **Not for**: real-time captions, cloud processing, legal-grade transcripts, or machines without a CUDA GPU (it is tested only on an 8 GB NVIDIA card; CPU-only use is untested).
 - **How**: install the dependencies, start the service, point your MCP client at `python -m joons_listen mcp`, then ask the client to transcribe a file.
 - **Trust**: the service binds to loopback only, reads audio only from folders you allow, and sends meeting text only to a local LLM. Every number it extracts is marked "verify": nothing is auto-confirmed. See [SECURITY.md](SECURITY.md).

@@ -42,7 +42,7 @@ def cmd_run(a) -> int:
 
     try:  # 서비스가 떠 있으면 같은 작업 DB 를 둘이 쓰게 되므로 직접 실행을 막는다
         _http("GET", "/health", port=config.PORT)
-        print("서비스가 이미 실행 중입니다. HTTP 또는 MCP 서버(listen_transcribe)로 접수하세요(직접 실행은 서비스를 끈 뒤에만).", file=sys.stderr)
+        print("The service is already running. Submit the job over HTTP or the MCP server (listen_transcribe); run directly only after stopping the service.", file=sys.stderr)
         return 2
     except Exception:  # noqa: BLE001
         pass
@@ -61,7 +61,7 @@ def cmd_run(a) -> int:
         time.sleep(2)
     jm.shutdown()
     print(json.dumps(j, ensure_ascii=False, indent=2))
-    print("결과 폴더:", config.JOBS_DIR / jid)
+    print("Result folder:", config.JOBS_DIR / jid)
     return 0 if j["state"] == "done" else 1
 
 
@@ -95,7 +95,7 @@ def main(argv=None) -> int:
     r.add_argument("--speakers", type=int, default=None)
     r.add_argument("--title", default=None)
     r.set_defaults(f=cmd_run)
-    m = sub.add_parser("mcp", help="MCP 서버(표준 입출력)")
+    m = sub.add_parser("mcp", help="MCP server over stdio")
     m.set_defaults(f=cmd_mcp)
     y = sub.add_parser("sync")
     y.add_argument("--port", type=int, default=config.PORT)
