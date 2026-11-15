@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 import zipfile
 from pathlib import Path
 from typing import Dict, Tuple
@@ -37,19 +38,46 @@ def build_bundle(job_id: str, job_dir: Path, out_dir: Path) -> Tuple[Path, Path]
     return zp, okp
 
 
+def _push_cmd(files, timeout: int = 180) -> Tuple[bool, str]:
+    """JOONS_LISTEN_MIRROR_CMD(JSON 배열)를 파일마다 실행한다. 셸을 쓰지 않는다."""
+    try:
+        tpl = json.loads(config.MIRROR_CMD)
+        if not isinstance(tpl, list) or not tpl or not all(isinstance(x, str) for x in tpl):
+            raise ValueError("not a list of strings")
+    except ValueError:
+        return False, "JOONS_LISTEN_MIRROR_CMD must be a JSON array of strings"
+    flags = 0x08000000 if hasattr(subprocess, "CREATE_NO_WINDOW") else 0  # Windows: 창을 띄우지 않는다
+    for f in files:
+        argv = [a.replace("{file}", str(f)) for a in tpl]
+        try:
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, creationflags=flags)
+        except subprocess.TimeoutExpired:
+            return False, "mirror command timed out"
+        except OSError as e:
+            return False, f"mirror command failed to start: {str(e)[:160]}"
+        if r.returncode != 0:
+            return False, f"mirror command failed ({r.returncode}): {(r.stdout + r.stderr).strip()[-200:]}"
+    return True, "ok"
+
+
 def push(job_id: str, job_dir: Path, work_dir: Path) -> Tuple[bool, str]:
     """미러 폴더로 복사한다. zip 먼저, 표식은 마지막(받는 쪽이 표식을 보고서야 가져가므로 반쯤 온 파일은 무시된다)."""
     if config.MIRROR_MODE == "off":
         return True, "off"
     zp, okp = build_bundle(job_id, job_dir, work_dir / "sync")
-    dest = Path(config.MIRROR_DIR)
-    try:
-        dest.mkdir(parents=True, exist_ok=True)
-        for f in (zp, okp):
-            shutil.copy2(f, dest / (f.name + ".part"))
-            (dest / (f.name + ".part")).replace(dest / f.name)
-    except OSError as e:
-        return False, f"mirror folder copy failed: {str(e)[:200]}"
+    if config.MIRROR_MODE == "cmd":
+        ok, msg = _push_cmd([zp, okp])
+        if not ok:
+            return False, msg
+    else:
+        dest = Path(config.MIRROR_DIR)
+        try:
+            dest.mkdir(parents=True, exist_ok=True)
+            for f in (zp, okp):
+                shutil.copy2(f, dest / (f.name + ".part"))
+                (dest / (f.name + ".part")).replace(dest / f.name)
+        except OSError as e:
+            return False, f"mirror folder copy failed: {str(e)[:200]}"
     for f in (zp, okp):  # 복사한 뒤 전송용 사본은 지운다(정본은 jobs 폴더)
         try:
             f.unlink()

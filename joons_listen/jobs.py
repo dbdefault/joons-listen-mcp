@@ -37,6 +37,9 @@ class JobManager:
             self.db.execute(
                 "CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, kind TEXT, state TEXT, stage TEXT, progress REAL, params TEXT, error TEXT, warnings TEXT, outputs TEXT, meta TEXT, title TEXT, created TEXT, updated TEXT, mirror TEXT)"
             )
+            cols = [r[1] for r in self.db.execute("PRAGMA table_info(jobs)").fetchall()]
+            if "mirror" not in cols and "brain_sync" in cols:  # 옛 DB(열 이름 brain_sync)를 그대로 이어 쓴다
+                self.db.execute("ALTER TABLE jobs RENAME COLUMN brain_sync TO mirror")
             # 서비스가 중간에 꺼졌던 작업은 대기열로 되돌려 체크포인트부터 이어 한다.
             self.db.execute("UPDATE jobs SET state='queued', stage=NULL WHERE state='running'")
             self.db.commit()
