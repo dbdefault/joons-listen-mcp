@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "joons-listen": {
+      "command": "python",
+      "args": ["-m", "joons_listen", "mcp"],
+      "env": { "JOONS_LISTEN_URL": "http://127.0.0.1:18796" }
+    }
+  }
+}

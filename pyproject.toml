@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "joons-listen-mcp"
+version = "0.1.0"
+description = "Local meeting transcription for MCP clients: Whisper large-v3 and Qwen3-ASR-1.7B, speaker turns, fact flags, Korean translation and minutes"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+dependencies = ["numpy", "soundfile", "scikit-learn"]
+keywords = ["mcp", "speech-to-text", "whisper", "qwen3-asr", "diarization", "meeting-minutes", "local-first"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+gpu = ["torch", "faster-whisper", "qwen-asr", "silero-vad", "speechbrain", "huggingface_hub"]
+
+[project.scripts]
+joons-listen-mcp = "joons_listen.cli:main"
+
+[tool.setuptools]
+packages = ["joons_listen"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

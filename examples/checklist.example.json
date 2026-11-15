@@ -1,0 +1,5 @@
+[
+  {"item": "Throughput of 400-500 kg/h", "any": ["400", "四百"], "all": ["kg|公斤"]},
+  {"item": "Eight production lines", "any": ["8条|八条|8个|八个"]},
+  {"item": "Test plan in November and December", "any": ["11月|十一月"], "all": ["12月|十二月"]}
+]

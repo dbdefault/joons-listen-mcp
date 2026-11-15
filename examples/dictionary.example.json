@@ -1,0 +1,9 @@
+{
+  "terms": [
+    {"term": "Acme(艾克美)", "type": "company", "aliases": ["艾克美", "에이크미", "Acme"]},
+    {"term": "Globex(环球)", "type": "company", "aliases": ["环球", "글로벡스"]}
+  ],
+  "replace": [
+    {"from": "Akme", "to": "Acme"}
+  ]
+}
