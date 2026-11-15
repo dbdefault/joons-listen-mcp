@@ -74,7 +74,7 @@ def run(ctx: Ctx, mgr: engines.EngineManager) -> Dict:
     ctx.check()
     segs_t = [(float(a), float(b)) for a, b in segs]
     if not segs_t:
-        raise JobError("AUDIO_DECODE_FAILED", "음성 구간을 찾지 못했습니다(무음이거나 너무 작은 소리)")
+        raise JobError("AUDIO_DECODE_FAILED", "no speech found (silence or a very quiet recording)")
 
     # 3) diarize
     ctx.set_stage("diarize", 0.0)
@@ -150,7 +150,7 @@ def run(ctx: Ctx, mgr: engines.EngineManager) -> Dict:
     if p.get("translate_ko") or p.get("minutes"):
         model = llm.available()
         if not model:
-            base["warnings"].append("로컬 LLM(Ollama)이 없어 번역·회의록 요약을 건너뛰었습니다(전사와 구조화 결과는 정상). 모델을 설치하면 listen.summarize 로 나중에 만들 수 있습니다.")
+            base["warnings"].append("No local LLM (Ollama) was available, so translation and minutes were skipped (the transcript and structured results are fine). Install a model and run listen_summarize later.")
             ctx.warn("LLM_UNAVAILABLE")
 
     # 6) translate
@@ -162,7 +162,7 @@ def run(ctx: Ctx, mgr: engines.EngineManager) -> Dict:
             segments[i]["text_ko"] = llm.fix_cny(tr[k], segments[i].get("lang")) if tr[k] else tr[k]
         miss = sum(1 for v in tr if v is None)
         if miss:
-            base["warnings"].append(f"번역 {miss}건은 모델이 형식에 맞게 답하지 못해 원문만 남겼습니다.")
+            base["warnings"].append(f"{miss} translations were skipped because the model did not answer in the expected format; the original text is kept.")
     ctx.check()
 
     # 7) minutes
@@ -195,7 +195,7 @@ def _minutes(result: Dict, model: str) -> Optional[Dict]:
     try:
         return llm.make_minutes(lines, facts, result.get("title", "회의"), model)
     except Exception as e:  # noqa: BLE001
-        result["warnings"].append(f"회의록 요약 실패: {str(e)[:120]}")
+        result["warnings"].append(f"minutes generation failed: {str(e)[:120]}")
         return None
 
 
@@ -207,7 +207,7 @@ def summarize_existing(ctx: Ctx, parent_result: Dict) -> Dict:
     ctx.set_stage("minutes", 0.0)
     model = llm.available()
     if not model:
-        raise JobError("LLM_UNAVAILABLE", "로컬 LLM(Ollama)에 쓸 수 있는 모델이 없습니다(예: ollama pull qwen3:8b)")
+        raise JobError("LLM_UNAVAILABLE", "the local LLM (Ollama) has no usable model (for example: ollama pull qwen3:8b)")
     if ctx.params.get("translate_ko"):
         idx = [s["i"] for s in res["segments"] if s["text"] and s.get("lang") != "ko"]
         tr = llm.translate_lines([res["segments"][i]["text"] for i in idx], model)

@@ -49,7 +49,7 @@ def push(job_id: str, job_dir: Path, work_dir: Path) -> Tuple[bool, str]:
             shutil.copy2(f, dest / (f.name + ".part"))
             (dest / (f.name + ".part")).replace(dest / f.name)
     except OSError as e:
-        return False, f"미러 폴더 복사 실패: {str(e)[:200]}"
+        return False, f"mirror folder copy failed: {str(e)[:200]}"
     for f in (zp, okp):  # 복사한 뒤 전송용 사본은 지운다(정본은 jobs 폴더)
         try:
             f.unlink()

@@ -26,7 +26,7 @@ def _is_loopback(url: str) -> bool:
 
 def call_api(method: str, path: str, body: Optional[Dict] = None, timeout: int = 30) -> Dict:
     if not _is_loopback(BASE_URL):
-        raise RuntimeError("JOONS_LISTEN_URL 은 루프백 주소(127.0.0.1)여야 합니다")
+        raise RuntimeError("JOONS_LISTEN_URL must be a loopback address (127.0.0.1)")
     data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
     req = urllib.request.Request(BASE_URL + path, data=data, method=method, headers={"Content-Type": "application/json"})
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 환경 프록시를 타지 않는다
@@ -39,7 +39,7 @@ def call_api(method: str, path: str, body: Optional[Dict] = None, timeout: int =
         except Exception:  # noqa: BLE001
             return {"ok": False, "code": "HTTP_ERROR", "message": f"HTTP {e.code}"}
     except (urllib.error.URLError, OSError):
-        return {"ok": False, "code": "SERVICE_DOWN", "message": f"JOONS LISTEN 서비스에 연결하지 못했습니다({BASE_URL}). `python -m joons_listen serve` 로 먼저 시작하세요."}
+        return {"ok": False, "code": "SERVICE_DOWN", "message": f"Cannot reach the JOONS LISTEN service at {BASE_URL}. Start it first with `python -m joons_listen serve`."}
 
 
 def _pick(args: Dict, keys: List[str]) -> Dict:
@@ -80,7 +80,7 @@ S = {"type": "string"}
 B = {"type": "boolean"}
 N = {"type": "number"}
 TOOLS: List[Dict[str, Any]] = [
-    {"name": "listen_transcribe", "description": "Queue a transcription job for a local audio file (Whisper large-v3 / Qwen3-ASR-1.7B, speaker labels, optional Korean translation and minutes). Returns a job_id immediately; poll listen_status, then fetch listen_result.", "fn": _t_transcribe, "schema": {"type": "object", "properties": {"audio_path": {**S, "description": "Path or bare file name inside an allowed folder"}, "language": {**S, "description": "auto|zh|ko|en"}, "engine": {**S, "description": "auto|whisper|qwen"}, "diarize": B, "num_speakers": {**N, "description": "1-10"}, "translate_ko": B, "minutes": B, "title": S, "dictionary": {"type": "array", "items": {"type": "object", "properties": {"from": S, "to": S}, "required": ["from", "to"]}}}, "required": ["audio_path"]}, "ro": False},
+    {"name": "listen_transcribe", "description": "Queue a transcription job for a local audio file (Whisper large-v3 / Qwen3-ASR-1.7B, speaker labels, optional Korean translation and minutes). Returns a job_id immediately; poll listen_status, then fetch listen_result.", "fn": _t_transcribe, "schema": {"type": "object", "properties": {"audio_path": {**S, "description": "Path or bare file name inside an allowed folder"}, "language": {**S, "description": "auto|zh|ko|en"}, "engine": {**S, "description": "auto|whisper|qwen"}, "diarize": B, "num_speakers": {**N, "description": "1-12"}, "translate_ko": B, "minutes": B, "title": S, "dictionary": {"type": "array", "items": {"type": "object", "properties": {"from": S, "to": S}, "required": ["from", "to"]}}}, "required": ["audio_path"]}, "ro": False},
     {"name": "listen_diarize", "description": "Queue a speaker-turn job (who spoke when, no transcript).", "fn": _t_diarize, "schema": {"type": "object", "properties": {"audio_path": S, "num_speakers": N, "title": S}, "required": ["audio_path"]}, "ro": False},
     {"name": "listen_summarize", "description": "Create minutes or a brief summary from a finished transcription job.", "fn": _t_summarize, "schema": {"type": "object", "properties": {"job_id": S, "style": {**S, "description": "minutes|brief"}, "force": B}, "required": ["job_id"]}, "ro": False},
     {"name": "listen_status", "description": "Status of one job, or service health plus recent jobs when job_id is omitted.", "fn": _t_status, "schema": {"type": "object", "properties": {"job_id": S}}, "ro": True},
@@ -97,7 +97,7 @@ def tools_list() -> List[Dict]:
 def tool_call(name: str, args: Dict) -> Dict:
     t = _BY_NAME.get(name)
     if t is None:
-        return {"isError": True, "content": [{"type": "text", "text": f"알 수 없는 도구입니다: {name}"}]}
+        return {"isError": True, "content": [{"type": "text", "text": f"unknown tool: {name}"}]}
     try:
         res = t["fn"](args or {})
     except Exception as e:  # noqa: BLE001

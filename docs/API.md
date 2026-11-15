@@ -1,6 +1,6 @@
 # HTTP API (v0.1)
 
-The service is started with `python -m joons_listen serve`. Default address `http://127.0.0.1:18796` (`JOONS_LISTEN_PORT`). It binds to loopback only. All responses are UTF-8 JSON. Errors look like `{"ok":false,"code":"...","message":"..."}` with a matching HTTP status. Messages are written in Korean.
+The service is started with `python -m joons_listen serve`. Default address `http://127.0.0.1:18796` (`JOONS_LISTEN_PORT`). It binds to loopback only. All responses are UTF-8 JSON. Errors look like `{"ok":false,"code":"...","message":"..."}` with a matching HTTP status. Error messages are in English.
 
 The MCP server (`python -m joons_listen mcp`) is a thin wrapper around these endpoints; see the tool table in the README.
 
@@ -8,7 +8,7 @@ The MCP server (`python -m joons_listen mcp`) is a thin wrapper around these end
 
 - `GET /health` returns `{ok, version, gpu:{name, vram_total_mb, vram_free_mb}|null, engines:{whisper:{ready,model}, qwen:{ready,model}}, llm:{ready,model}|null, queue:{running, queued}, store:{mirror, pending}, uptime_sec}`.
 - `GET /models` returns the two engines (license, languages, loaded state, VRAM estimate) and the language routing.
-- `POST /jobs` with `{kind:"transcribe"|"diarize", audio_path, language?:"auto"|"zh"|"ko"|"en", engine?:"auto"|"whisper"|"qwen", diarize?:true, num_speakers?:1..10, translate_ko?:bool, minutes?:bool, title?:string, dictionary?:[{from,to}]}` returns `202 {ok:true, job_id}`.
+- `POST /jobs` with `{kind:"transcribe"|"diarize", audio_path, language?:"auto"|"zh"|"ko"|"en", engine?:"auto"|"whisper"|"qwen", diarize?:true, num_speakers?:1..12, translate_ko?:bool, minutes?:bool, title?:string, dictionary?:[{from,to}]}` returns `202 {ok:true, job_id}`.
   - `kind:"diarize"` returns speaker turns only (no transcript).
   - `audio_path` must be inside an allowed folder (`PATH_NOT_ALLOWED` otherwise, `FILE_NOT_FOUND` if missing). A bare file name is searched for in the allowed folders.
 - `POST /jobs/<id>/summarize` with `{style?:"minutes"|"brief", force?:bool}` returns `202 {ok:true, job_id:<new job id>}`: creates minutes or a summary from a finished transcription job.

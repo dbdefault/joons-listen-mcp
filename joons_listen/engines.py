@@ -92,7 +92,7 @@ class WhisperEngine:
             import ctranslate2
             from faster_whisper import WhisperModel
         except Exception as e:  # noqa: BLE001
-            raise EngineError("ENGINE_UNAVAILABLE", f"faster-whisper 를 불러올 수 없습니다: {e}")
+            raise EngineError("ENGINE_UNAVAILABLE", f"cannot import faster-whisper: {e}")
         local = config.MODELS_DIR / "faster-whisper-large-v3"
         src = str(local) if (local / "model.bin").exists() else config.WHISPER_MODEL
         cuda = ctranslate2.get_cuda_device_count() > 0
@@ -103,7 +103,7 @@ class WhisperEngine:
         except Exception as e:  # noqa: BLE001
             msg = str(e)
             code = "GPU_OOM" if "out of memory" in msg.lower() else "ENGINE_UNAVAILABLE"
-            raise EngineError(code, f"Whisper large-v3 적재 실패: {msg[:200]}")
+            raise EngineError(code, f"failed to load Whisper large-v3: {msg[:200]}")
 
     def unload(self) -> None:
         self.model = None
@@ -135,7 +135,7 @@ class WhisperEngine:
                 dur += d
         except Exception as e:  # noqa: BLE001
             msg = str(e)
-            raise EngineError("GPU_OOM" if "out of memory" in msg.lower() else "INTERNAL", f"Whisper 전사 실패: {msg[:200]}")
+            raise EngineError("GPU_OOM" if "out of memory" in msg.lower() else "INTERNAL", f"Whisper transcription failed: {msg[:200]}")
         conf = math.exp(lp / dur) if dur > 0 else None
         return {"text": "".join(parts).strip(), "language": norm_lang(info.language) or info.language, "lang_prob": float(info.language_probability or 0), "confidence": conf}
 
@@ -159,7 +159,7 @@ class QwenEngine:
             import torch
             from qwen_asr import Qwen3ASRModel
         except Exception as e:  # noqa: BLE001
-            raise EngineError("ENGINE_UNAVAILABLE", f"qwen-asr 를 불러올 수 없습니다: {e}")
+            raise EngineError("ENGINE_UNAVAILABLE", f"cannot import qwen-asr: {e}")
         local = config.MODELS_DIR / "qwen3-asr-1.7b"
         src = str(local) if (local / "config.json").exists() else config.QWEN_MODEL
         kw = dict(dtype=torch.bfloat16, device_map="cuda:0" if torch.cuda.is_available() else "cpu", max_inference_batch_size=config.QWEN_BATCH, max_new_tokens=512)
@@ -171,7 +171,7 @@ class QwenEngine:
             self.model = Qwen3ASRModel.from_pretrained(src, **kw)
         except Exception as e:  # noqa: BLE001
             msg = str(e)
-            raise EngineError("GPU_OOM" if "out of memory" in msg.lower() else "ENGINE_UNAVAILABLE", f"Qwen3-ASR 적재 실패: {msg[:200]}")
+            raise EngineError("GPU_OOM" if "out of memory" in msg.lower() else "ENGINE_UNAVAILABLE", f"failed to load Qwen3-ASR: {msg[:200]}")
         try:
             self._accepts = set(inspect.signature(self.model.transcribe).parameters)
         except Exception:
@@ -192,7 +192,7 @@ class QwenEngine:
             res = self.model.transcribe(**kw)
         except Exception as e:  # noqa: BLE001
             msg = str(e)
-            raise EngineError("GPU_OOM" if "out of memory" in msg.lower() else "INTERNAL", f"Qwen3-ASR 전사 실패: {msg[:200]}")
+            raise EngineError("GPU_OOM" if "out of memory" in msg.lower() else "INTERNAL", f"Qwen3-ASR transcription failed: {msg[:200]}")
         out: List[Dict] = []
         for r in res:
             text = getattr(r, "text", "") or ""

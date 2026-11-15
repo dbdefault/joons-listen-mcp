@@ -24,7 +24,7 @@ This is a 0.1.0 preview. These are the weaknesses we measured or know about.
 
 - Tested on Windows 11 with one NVIDIA GPU (8 GB). Linux and macOS are expected to work for the pure-Python parts and the test suite, but GPU use there is untested. CPU-only use is untested.
 - One job runs at a time. The GPU holds one ASR engine at a time.
-- Messages, error text and prompts for translation and minutes are written for Korean readers (error messages are in Korean). The API fields and documentation are in English.
+- Error messages and documentation are in English. Translation and minutes are produced in Korean by design, so the minutes Markdown layout, its headings and the speaker labels (`화자 1`) are Korean. Source code comments are mostly Korean.
 
 ## Not included
 
