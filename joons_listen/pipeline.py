@@ -119,6 +119,11 @@ def run(ctx: Ctx, mgr: engines.EngineManager) -> Dict:
     engine_pref = p.get("engine", "auto") or "auto"
     ens = engine_pref == "ensemble"
     alt: Dict[int, Dict] = {}
+    # Merge evidence: with a customer, only that customer's terms count. Global terms (other customers' names) are
+    # also given to Whisper as hotwords, and Whisper echoes them on unclear audio (field case: '欧洲保金佳' twice).
+    ev_terms = hints
+    if ens and p.get("customer"):
+        ev_terms = dictionary.hint_words(dictionary.load(dictionary.customer_path(p["customer"]))) or hints
     if ens:
         # Same turns, two engines one after the other (one model on the 8 GB GPU at a time). Qwen is primary.
         _, doc_lang = _run_asr(ctx, mgr, arr, turns_j, done, asr_path, req_lang, "qwen", hints, stage=(0.0, 0.5))
@@ -144,7 +149,7 @@ def run(ctx: Ctx, mgr: engines.EngineManager) -> Dict:
         if ens:
             w_raw = alt.get(i, {}).get("text", "")
             w_text = "" if dictionary.is_hint_echo(w_raw, hints) else dictionary.apply_replace(w_raw, rules).strip()
-            m = ensemble.merge(text, w_text, hints)
+            m = ensemble.merge(text, w_text, ev_terms)
             seg["text"] = m["text"] if not echo else ""
             seg["alts"] = {"qwen": text, "whisper": w_text}
             seg["agree"] = m["agree"]

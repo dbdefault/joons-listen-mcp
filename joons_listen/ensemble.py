@@ -86,6 +86,15 @@ def _same_number(pa: str, sb: str) -> bool:
     return v is not None and str(v) == digits
 
 
+def _self_repeat(s: str) -> bool:
+    """'欧洲保金佳欧洲保金佳': a span made of one chunk said twice or more is a typical hotword echo."""
+    s = s.replace(" ", "")
+    for k in range(2, len(s) // 2 + 1):
+        if len(s) % k == 0 and s[:k] * (len(s) // k) == s:
+            return True
+    return False
+
+
 def _term_hits(text: str, lo: int, hi: int, terms: Iterable[str]) -> int:
     """Dictionary terms in `text` that overlap the character range [lo, hi)."""
     n = 0
@@ -144,7 +153,7 @@ def merge(primary: str, secondary: str, terms: Iterable[str] = ()) -> Dict:
             cb, lb, hb = _ctx(b, j1, j2)
             la_len, lb_len = len(ta.replace(" ", "")), len(tb.replace(" ", ""))
             similar = 0.5 <= lb_len / max(1, la_len) <= 2.0
-            if similar and _term_hits(cb, lb, hb, terms) > _term_hits(ca, la, ha, terms):
+            if similar and not _self_repeat(tb) and _term_hits(cb, lb, hb, terms) > _term_hits(ca, la, ha, terms):
                 pick = "secondary"
                 swaps.append((am[i1].start(), am[i2 - 1].end(), tb))
         conflicts.append({"primary": _join(pa), "secondary": _join(sb), "pick": pick})

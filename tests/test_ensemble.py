@@ -68,6 +68,12 @@ class MergeTest(unittest.TestCase):
         m = ensemble.merge("陶氏的料今天天气很好", "陶氏的料今天天汽很好", terms)
         self.assertEqual(m["text"], "陶氏的料今天天气很好")
 
+    def test_repeated_hotword_echo_rejected(self):
+        # Field case: Whisper replaced real speech with a dictionary name said twice.
+        terms = ["保金佳"]
+        m = ensemble.merge("第一为主哦但是多层的", "欧洲保金佳欧洲保金佳", terms)
+        self.assertEqual(m["text"], "第一为主哦但是多层的")
+
     def test_secondary_only_insertion_ignored(self):
         m = ensemble.merge("好的", "好的谢谢大家再见", self.TERMS)
         self.assertEqual(m["text"], "好的")
