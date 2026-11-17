@@ -9,7 +9,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from . import audio, config, dictionary, diarize, engines, ensemble, llm, outputs, vad, verify
+from . import audio, config, crosscheck, dictionary, diarize, engines, ensemble, llm, outputs, vad, verify
 
 
 class Cancelled(Exception):
@@ -170,6 +170,7 @@ def run(ctx: Ctx, mgr: engines.EngineManager) -> Dict:
     for seg in segments:
         for nm in dictionary.name_hits(seg["text"], dic):
             ana["facts"].append({"type": "name", "text": nm, "segment": seg["i"], "verify": True})
+    base["customer"] = p.get("customer")
     base.update({"engine": chosen, "language": doc_lang, "segments": segments, "facts": ana["facts"], "uncertain": ana["uncertain"], "minutes": None})
 
     model = None
@@ -241,6 +242,38 @@ def summarize_existing(ctx: Ctx, parent_result: Dict) -> Dict:
             res["segments"][i]["text_ko"] = llm.fix_cny(tr[k], res["segments"][i].get("lang")) if tr[k] else tr[k]
     res["minutes"] = _minutes(res, model)
     llm.unload(model)
+    return res
+
+
+def crosscheck_existing(ctx: Ctx, parent_result: Dict) -> Dict:
+    """kind=crosscheck: reference vote, optional LLM arbitration and a notes check on a finished transcription."""
+    p = ctx.params
+    res = json.loads(json.dumps(parent_result))
+    res["job_id"] = ctx.job_id
+    res["parent_job_id"] = p.get("parent_job_id")
+    res.setdefault("warnings", [])
+    cust = p.get("customer") or parent_result.get("customer")
+    dic = dictionary.load(dictionary.customer_path(cust)) if cust else dictionary.load()
+    terms = dictionary.hint_words(dic, limit=400)
+    cc: Dict = {"customer": cust}
+    ctx.set_stage("verify", 0.0)
+    refs = p.get("references") or []
+    if refs:
+        cc["reference_vote"] = crosscheck.reference_vote(res["segments"], refs)
+        cc["references"] = [r.get("name") for r in refs]
+    ctx.check()
+    if p.get("arbitrate"):
+        ctx.set_stage("minutes", 0.0)
+        model = llm.available()
+        if not model:
+            res["warnings"].append("No local LLM (Ollama) was available, so arbitration was skipped.")
+        else:
+            cc["llm"] = crosscheck.llm_arbitrate(res["segments"], terms, lambda msgs: llm.chat(msgs, model, json_mode=True))
+            llm.unload(model)
+    ctx.check()
+    if p.get("notes"):
+        cc["notes"] = crosscheck.notes_check(res["segments"], p["notes"], terms)
+    res["crosscheck"] = cc
     return res
 
 

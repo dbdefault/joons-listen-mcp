@@ -17,7 +17,7 @@ from . import config, dictionary, engines, jobs, llm, store_sync
 log = logging.getLogger("joons_listen.server")
 
 LANGS = ["zh", "ko", "en", "ja"]
-FORMATS = ("json", "txt", "md", "srt", "minutes")
+FORMATS = ("json", "txt", "md", "srt", "minutes", "crosscheck")
 
 
 class ApiError(Exception):
@@ -196,6 +196,30 @@ class Service:
         params = {"parent_job_id": jid, "translate_ko": True, "minutes": True, "title": j.get("title")}
         return {"ok": True, "job_id": self.jobs.submit("summarize", params)}
 
+    def crosscheck(self, jid: str, body: Dict) -> Dict:
+        j = self.jobs.get(jid)
+        if not j:
+            raise ApiError(404, "NOT_FOUND", "job not found")
+        if j["state"] != "done" or j["kind"] not in ("transcribe", "crosscheck"):
+            raise ApiError(409, "NOT_READY", "only a finished transcription job can be cross-checked")
+        notes = body.get("notes")
+        if notes is not None and (not isinstance(notes, str) or len(notes) > 100000):
+            raise ApiError(400, "BAD_REQUEST", "notes must be a string of at most 100000 characters")
+        refs = body.get("references") or []
+        if not isinstance(refs, list) or len(refs) > 5 or not all(isinstance(r, dict) and isinstance(r.get("text", ""), str) and len(r.get("text", "")) <= 100000 for r in refs):
+            raise ApiError(400, "BAD_REQUEST", "references must be a list of at most 5 {name, text} objects (text up to 100000 characters; the whole request must stay under 1 MB)")
+        cust = body.get("customer") or None
+        if cust is not None:
+            try:
+                dictionary.customer_path(cust)
+            except ValueError as e:
+                raise ApiError(400, "BAD_REQUEST", str(e))
+        if not notes and not refs and not body.get("arbitrate"):
+            raise ApiError(400, "BAD_REQUEST", "give notes, references or arbitrate=true")
+        params = {"parent_job_id": jid, "notes": notes, "references": [{"name": str(r.get("name") or f"ref{i + 1}")[:40], "text": r.get("text", "")} for i, r in enumerate(refs)],
+                  "arbitrate": bool(body.get("arbitrate", False)), "customer": cust, "title": j.get("title")}
+        return {"ok": True, "job_id": self.jobs.submit("crosscheck", params)}
+
     def status(self, jid: str) -> Dict:
         j = self.jobs.get(jid)
         if not j:
@@ -277,6 +301,8 @@ def make_handler(svc: Service):
                     return 202, svc.submit(self._body())
                 if len(parts) == 3 and parts[0] == "jobs" and parts[2] == "summarize":
                     return 202, svc.summarize(parts[1], self._body())
+                if len(parts) == 3 and parts[0] == "jobs" and parts[2] == "crosscheck":
+                    return 202, svc.crosscheck(parts[1], self._body())
                 if len(parts) == 3 and parts[0] == "jobs" and parts[2] == "cancel":
                     st = svc.jobs.cancel(parts[1])
                     if st is None:

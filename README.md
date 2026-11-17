@@ -85,6 +85,7 @@ Tools:
 | `listen_transcribe` | queue a transcription job, returns `job_id` immediately | no |
 | `listen_diarize` | queue a speaker-turn job (no transcript) | no |
 | `listen_summarize` | minutes or brief summary from a finished job | no |
+| `listen_crosscheck` | check a finished job against other transcripts and meeting notes | no |
 | `listen_status` | one job's progress, or service health and recent jobs | yes |
 | `listen_result` | read a result in chunks (`json`, `txt`, `md`, `srt`, `minutes`) | yes |
 | `listen_models` | engines, state and language routing | yes |

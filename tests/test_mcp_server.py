@@ -12,7 +12,7 @@ class McpProtocol(unittest.TestCase):
         self.assertIn("tools", r["result"]["capabilities"])
         r = m.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         names = [t["name"] for t in r["result"]["tools"]]
-        self.assertEqual(names, ["listen_transcribe", "listen_diarize", "listen_summarize", "listen_status", "listen_result", "listen_models"])
+        self.assertEqual(names, ["listen_transcribe", "listen_diarize", "listen_summarize", "listen_crosscheck", "listen_status", "listen_result", "listen_models"])
         ro = {t["name"]: t["annotations"]["readOnlyHint"] for t in r["result"]["tools"]}
         self.assertTrue(ro["listen_status"] and ro["listen_result"] and ro["listen_models"])
         self.assertFalse(ro["listen_transcribe"])
