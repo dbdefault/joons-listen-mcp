@@ -17,6 +17,13 @@ class NormalizeTest(unittest.TestCase):
         self.assertEqual(crosscheck.normalize("价格一千四百五十美金"), "价格1450美金")
         self.assertEqual(crosscheck.normalize("密度零点九六五，二十二点四吨"), "密度0.965224吨".replace("224", "22.4"))
         self.assertEqual(crosscheck.normalize("六五零六 ME-1000"), "6506me1000")
+        self.assertEqual(crosscheck.normalize("现在要一千四百五"), "现在要1450")
+
+    def test_spoken_short_forms(self):
+        from joons_listen import ensemble
+        cases = {"一千四百五": 1450, "一千零五": 1005, "两万一": 21000, "一百一十": 110, "三百五": 350, "十二": 12, "二十": 20, "一万一千": 11000}
+        for s, v in cases.items():
+            self.assertEqual(ensemble._cn_int(s), v, s)
 
 
 class ReferenceVoteTest(unittest.TestCase):
@@ -33,6 +40,22 @@ class ReferenceVoteTest(unittest.TestCase):
         self.assertEqual(segs[0]["conflicts"][0]["resolved_by"], "reference:doubao")
         self.assertEqual(segs[1]["text"], "我们用陶氏的料")
         self.assertEqual(st, {"checked": 3, "confirmed": 1, "switched": 1, "undecided": 1})
+
+    def test_bare_common_word_does_not_vote(self):
+        # Field case: a function word appears somewhere in any long reference.
+        segs = [seg(0, 0, "那个就是这样", [{"primary": "就是", "secondary": "因为", "pick": "primary"}])]
+        st = crosscheck.reference_vote(segs, [{"name": "doubao", "text": "因为今天下雨。那个就是这样。"}])
+        self.assertEqual(segs[0]["text"], "那个就是这样")
+        self.assertEqual(st["confirmed"], 1)
+        segs = [seg(0, 0, "那个就是这样", [{"primary": "就是", "secondary": "因为", "pick": "primary"}])]
+        st = crosscheck.reference_vote(segs, [{"name": "doubao", "text": "因为今天下雨，我们走了"}])
+        self.assertEqual(st["undecided"], 1)
+
+    def test_length_mismatch_skipped(self):
+        segs = [seg(0, 0, "那卢华看看现在怎么样", [{"primary": "那卢华看看现在", "secondary": "小邓", "pick": "primary"}])]
+        st = crosscheck.reference_vote(segs, [{"name": "kimi", "text": "小邓怎么样"}])
+        self.assertEqual(st["checked"], 0)
+        self.assertEqual(segs[0]["text"], "那卢华看看现在怎么样")
 
     def test_switch_back_to_primary(self):
         segs = [seg(0, 0, "我们用TPU", [{"primary": "TPE", "secondary": "TPU", "pick": "secondary"}])]
@@ -73,6 +96,8 @@ class NotesCheckTest(unittest.TestCase):
         keys = [e["key"] for e in r["missing_from_notes"]]
         self.assertIn("175", keys)
         self.assertIn("me2500", keys)
+        r2 = crosscheck.notes_check([seg(0, 0, "有二三十个工厂，我们现在20吨")], "", [])
+        self.assertEqual([e["key"] for e in r2["missing_from_notes"]], ["20"])
         md = crosscheck.report_md({"title": "t", "crosscheck": {"notes": r, "reference_vote": {"checked": 1, "switched": 0, "undecided": 1, "confirmed": 0}}})
         self.assertIn("회의록 줄별 확인", md)
         self.assertIn("175", md)

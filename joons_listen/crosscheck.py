@@ -20,6 +20,7 @@ _PUNCT = re.compile(r"[\s,，。、；;：:！!？?“”\"'‘’（）()\[\]�
 _CN_NUMRUN = re.compile(r"[零〇一幺二两三四五六七八九十百千万亿]{2,}")
 _CN_DEC = re.compile(r"([零〇一幺二两三四五六七八九十百千万]+)点([零〇一幺二两三四五六七八九]+)")
 _NUM = re.compile(r"\d+(?:\.\d+)?")
+_UNIT = re.compile(r"(?:吨|公斤|kg|美金|美元|元|块|%|℃|度|柜|个柜|天|号|月|t\b)")
 _CODE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{1,6}-?\d{2,10}[A-Za-z]?(?![A-Za-z0-9])")
 
 
@@ -68,6 +69,16 @@ def apply_choice(seg: Dict, c: Dict, choice: str, by: str) -> bool:
     return True
 
 
+def _context(seg: Dict, c: Dict, n: int = 2):
+    """n normalized characters left and right of the conflict's current text inside the segment."""
+    t = normalize(seg.get("text", ""))
+    cur = normalize(c["secondary"] if c.get("pick") == "secondary" else c["primary"])
+    k = t.find(cur) if cur else -1
+    if k < 0:
+        return "", ""
+    return t[max(0, k - n):k], t[k + len(cur):k + len(cur) + n]
+
+
 def reference_vote(segments: List[Dict], refs: Sequence[Dict]) -> Dict:
     """refs: [{"name": str, "text": str}]. Decides conflicts where exactly one candidate appears in a reference."""
     nrefs = [(r.get("name") or f"ref{i + 1}", normalize(r.get("text", ""))) for i, r in enumerate(refs) if r.get("text")]
@@ -79,9 +90,15 @@ def reference_vote(segments: List[Dict], refs: Sequence[Dict]) -> Dict:
             p, s = normalize(c.get("primary", "")), normalize(c.get("secondary", ""))
             if len(p) < 2 and len(s) < 2:
                 continue
+            if p and s and not (0.5 <= len(s) / len(p) <= 2.0):
+                continue  # a long span against a short one is not a wording choice
             stats["checked"] += 1
-            vp = [n for n, t in nrefs if len(p) >= 2 and p in t]
-            vs = [n for n, t in nrefs if len(s) >= 2 and s in t]
+            # Anchor each candidate with the characters around it in this segment: a bare short word such as
+            # 因为 is found in any long reference and proves nothing (field run: 21 switches, most were noise).
+            left, right = _context(seg, c)
+            ap, as_ = left + p + right, left + s + right
+            vp = [n for n, t in nrefs if len(p) >= 2 and ap in t]
+            vs = [n for n, t in nrefs if len(s) >= 2 and as_ in t]
             if vs and not vp:
                 choice, names = "secondary", vs
             elif vp and not vs:
@@ -135,7 +152,9 @@ def llm_arbitrate(segments: List[Dict], terms: Iterable[str], chat: Callable[[Li
 def _keys(text: str, terms: Iterable[str]) -> List[str]:
     """Numbers (2+ digits or decimals), product codes and dictionary terms found in a text, normalized."""
     n = normalize(text)
-    keys = [k for k in _NUM.findall(n) if len(k.replace(".", "")) >= 2]
+    # Numbers: 3+ digits or decimals; 2-digit numbers only with a unit (20吨, 15%), plain ones are mostly noise.
+    keys = [m.group(0) for m in _NUM.finditer(n)
+            if len(m.group(0).replace(".", "")) >= 3 or "." in m.group(0) or (len(m.group(0)) == 2 and _UNIT.match(n, m.end()))]
     keys += [m.group(0).lower().replace("-", "") for m in _CODE.finditer(ensemble.digits_to_arabic(text))]
     for t in terms:
         tn = normalize(t)

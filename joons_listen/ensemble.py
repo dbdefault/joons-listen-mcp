@@ -59,12 +59,16 @@ _CN_UNIT = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
 
 
 def _cn_int(s: str):
-    """十二 -> 12, 一千六百 -> 1600, 一万一千 -> 11000. None when s is not a plain Chinese number."""
+    """十二 -> 12, 一千六百 -> 1600, 一万一千 -> 11000, and the spoken short forms 一千四百五 -> 1450,
+    两万一 -> 21000, 三百五 -> 350 (a trailing digit right after 百/千/万 means the next lower unit).
+    None when s is not a plain Chinese number."""
     if not s or any(c not in _CN_NUM and c not in _CN_UNIT for c in s):
         return None
-    total, section, num = 0, 0, None
+    total, section, num, last, prev_unit = 0, 0, None, 0, False
     for c in s:
         if c in _CN_NUM:
+            if num is not None or (c in "零〇"):
+                prev_unit = False  # 一千零五: the 零 breaks the short form
             num = _CN_NUM[c]
         else:
             u = _CN_UNIT[c]
@@ -73,7 +77,9 @@ def _cn_int(s: str):
                 section = 0
             else:
                 section += (1 if num is None else num) * u
-            num = None
+            num, last, prev_unit = None, u, True
+    if num is not None and prev_unit and last >= 100:
+        return total + section + num * (last // 10)
     return total + section + (num or 0)
 
 
