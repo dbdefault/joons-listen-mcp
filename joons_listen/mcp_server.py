@@ -47,7 +47,7 @@ def _pick(args: Dict, keys: List[str]) -> Dict:
 
 
 def _t_transcribe(a: Dict) -> Dict:
-    return call_api("POST", "/jobs", {"kind": "transcribe", **_pick(a, ["audio_path", "language", "engine", "diarize", "num_speakers", "translate_ko", "minutes", "title", "dictionary"])})
+    return call_api("POST", "/jobs", {"kind": "transcribe", **_pick(a, ["audio_path", "language", "engine", "diarize", "num_speakers", "translate_ko", "minutes", "title", "dictionary", "customer"])})
 
 
 def _t_diarize(a: Dict) -> Dict:
@@ -80,7 +80,7 @@ S = {"type": "string"}
 B = {"type": "boolean"}
 N = {"type": "number"}
 TOOLS: List[Dict[str, Any]] = [
-    {"name": "listen_transcribe", "description": "Queue a transcription job for a local audio file (Whisper large-v3 / Qwen3-ASR-1.7B, speaker labels, optional Korean translation and minutes). Returns a job_id immediately; poll listen_status, then fetch listen_result.", "fn": _t_transcribe, "schema": {"type": "object", "properties": {"audio_path": {**S, "description": "Path or bare file name inside an allowed folder"}, "language": {**S, "description": "auto|zh|ko|en"}, "engine": {**S, "description": "auto|whisper|qwen"}, "diarize": B, "num_speakers": {**N, "description": "1-12"}, "translate_ko": B, "minutes": B, "title": S, "dictionary": {"type": "array", "items": {"type": "object", "properties": {"from": S, "to": S}, "required": ["from", "to"]}}}, "required": ["audio_path"]}, "ro": False},
+    {"name": "listen_transcribe", "description": "Queue a transcription job for a local audio file (Whisper large-v3 / Qwen3-ASR-1.7B, speaker labels, optional Korean translation and minutes). Returns a job_id immediately; poll listen_status, then fetch listen_result.", "fn": _t_transcribe, "schema": {"type": "object", "properties": {"audio_path": {**S, "description": "Path or bare file name inside an allowed folder"}, "language": {**S, "description": "auto|zh|ko|en"}, "engine": {**S, "description": "auto|whisper|qwen|ensemble (ensemble runs Qwen and Whisper on the same turns and merges them; about twice the time)"}, "diarize": B, "num_speakers": {**N, "description": "1-12"}, "translate_ko": B, "minutes": B, "title": S, "customer": {**S, "description": "Customer dictionary name (file <data>/dictionaries/<name>.json): hints and fixes for that customer's names, products and terms"}, "dictionary": {"type": "array", "items": {"type": "object", "properties": {"from": S, "to": S}, "required": ["from", "to"]}}}, "required": ["audio_path"]}, "ro": False},
     {"name": "listen_diarize", "description": "Queue a speaker-turn job (who spoke when, no transcript).", "fn": _t_diarize, "schema": {"type": "object", "properties": {"audio_path": S, "num_speakers": N, "title": S}, "required": ["audio_path"]}, "ro": False},
     {"name": "listen_summarize", "description": "Create minutes or a brief summary from a finished transcription job.", "fn": _t_summarize, "schema": {"type": "object", "properties": {"job_id": S, "style": {**S, "description": "minutes|brief"}, "force": B}, "required": ["job_id"]}, "ro": False},
     {"name": "listen_status", "description": "Status of one job, or service health plus recent jobs when job_id is omitted.", "fn": _t_status, "schema": {"type": "object", "properties": {"job_id": S}}, "ro": True},

@@ -17,6 +17,8 @@ JOBS_DIR = DATA_DIR / "jobs"
 MODELS_DIR = DATA_DIR / "models"
 DB_PATH = DATA_DIR / "jobs.sqlite3"
 DICT_PATH = Path(os.environ.get("JOONS_LISTEN_DICT", str(DATA_DIR / "dictionary.json")))
+# Per-customer dictionaries (<name>.json). Keep them out of any public repository.
+CUSTOMER_DICT_DIR = Path(os.environ.get("JOONS_LISTEN_DICT_DIR", str(DATA_DIR / "dictionaries")))
 
 # 허용 폴더: 서비스는 이 폴더 안의 오디오 파일만 읽는다(임의 파일 읽기 방지).
 _default_roots = [INBOX_DIR, HOME / "Desktop", HOME / "Downloads"]
