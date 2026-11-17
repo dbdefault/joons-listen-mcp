@@ -44,6 +44,30 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(m["agree"], 1.0)
         self.assertEqual(m["text"], "价格1450美金")
 
+    def test_unit_numbers_count_as_agreement(self):
+        m = ensemble.merge("一个柜二十吨，一千六百美金", "一个柜20吨1600美金", self.TERMS)
+        self.assertEqual(m["agree"], 1.0)
+        self.assertEqual(m["conflicts"], [])
+        self.assertEqual(m["text"], "一个柜二十吨，一千六百美金")
+
+    def test_arabic_digits_alone_do_not_win(self):
+        # Field case: Whisper wrote a different number (1.7 for 零点七).
+        m = ensemble.merge("现在就是一点零嘛零点七零点八啊", "现在就是1.0嘛1.7 1.8啊", self.TERMS)
+        self.assertIn("零点七", m["text"])
+        self.assertTrue(all(c["pick"] == "primary" for c in m["conflicts"]))
+
+    def test_short_term_does_not_replace_long_span(self):
+        # Field case: a whole clause was replaced by one dictionary word.
+        terms = self.TERMS + ["TPU"]
+        m = ensemble.merge("因为它要从原材料那边就要去一个颜色的附着", "因为它要从TPU颜色的附着", terms)
+        self.assertIn("原材料", m["text"])
+        self.assertNotIn("TPU", m["text"])
+
+    def test_term_in_context_only_does_not_win(self):
+        terms = ["陶氏"]
+        m = ensemble.merge("陶氏的料今天天气很好", "陶氏的料今天天汽很好", terms)
+        self.assertEqual(m["text"], "陶氏的料今天天气很好")
+
     def test_secondary_only_insertion_ignored(self):
         m = ensemble.merge("好的", "好的谢谢大家再见", self.TERMS)
         self.assertEqual(m["text"], "好的")
