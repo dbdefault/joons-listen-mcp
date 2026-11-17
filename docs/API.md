@@ -8,7 +8,7 @@ The MCP server (`python -m joons_listen mcp`) is a thin wrapper around these end
 
 - `GET /health` returns `{ok, version, gpu:{name, vram_total_mb, vram_free_mb}|null, engines:{whisper:{ready,model}, qwen:{ready,model}}, llm:{ready,model}|null, queue:{running, queued}, store:{mirror, pending}, uptime_sec}`.
 - `GET /models` returns the two engines (license, languages, loaded state, VRAM estimate) and the language routing.
-- `POST /jobs` with `{kind:"transcribe"|"diarize", audio_path, language?:"auto"|"zh"|"ko"|"en", engine?:"auto"|"whisper"|"qwen", diarize?:true, num_speakers?:1..12, translate_ko?:bool, minutes?:bool, title?:string, dictionary?:[{from,to}]}` returns `202 {ok:true, job_id}`.
+- `POST /jobs` with `{kind:"transcribe"|"diarize", audio_path, language?:"auto"|"zh"|"ko"|"en", engine?:"auto"|"whisper"|"qwen"|"ensemble", diarize?:true, num_speakers?:1..12, translate_ko?:bool, minutes?:bool, title?:string, dictionary?:[{from,to}], customer?:string}` returns `202 {ok:true, job_id}`.
   - `kind:"diarize"` returns speaker turns only (no transcript).
   - `audio_path` must be inside an allowed folder (`PATH_NOT_ALLOWED` otherwise, `FILE_NOT_FOUND` if missing). A bare file name is searched for in the allowed folders.
 - `POST /jobs/<id>/summarize` with `{style?:"minutes"|"brief", force?:bool}` returns `202 {ok:true, job_id:<new job id>}`: creates minutes or a summary from a finished transcription job.
@@ -38,4 +38,12 @@ The MCP server (`python -m joons_listen mcp`) is a thin wrapper around these end
   "minutes": {"title","summary","decisions":[..],"actions":[{"who","what","due"}],"open_questions":[..],"llm":"model|null"} | null }
 ```
 
-`flags`: `uncertain` (low confidence, odd speech rate or repetition), `repeat` (repeated text, probably hallucination), `hint_echo` (the recognizer echoed the dictionary hints; the text was removed), `price`, `quantity`, `date`, `code` (a fact was extracted from this segment), `check_*` (a fact in a low-confidence segment).
+`flags`: `uncertain` (low confidence, odd speech rate or repetition), `repeat` (repeated text, probably hallucination), `hint_echo` (the recognizer echoed the dictionary hints; the text was removed), `engines_disagree` (ensemble only: Qwen and Whisper agree on less than 60% of the tokens), `price`, `quantity`, `date`, `code` (a fact was extracted from this segment), `check_*` (a fact in a low-confidence segment).
+
+## Ensemble mode (`engine: "ensemble"`)
+
+Qwen3-ASR and Whisper transcribe the same speaker turns one after the other (one model on the GPU at a time, about twice the time of a single engine). Qwen is the primary text. Where the two disagree, the Whisper span is taken only when it contains a dictionary term or a number and the Qwen span does not; text that only one engine produced follows Qwen. Digit-by-digit Chinese readings of three or more characters (六五零六) are written as Arabic digits (6506) before comparison. Each segment then carries `alts:{qwen,whisper}`, `agree` (0..1) and `conflicts:[{primary,secondary,pick}]`, and the result has `ensemble:{engines, primary, mean_agree, segments_disagree, picked_secondary}`.
+
+## Customer dictionaries (`customer`)
+
+`customer: "acme"` loads `<data>/dictionaries/acme.json` (same format as the global dictionary) in front of the global one. Names are plain words (letters, digits, `_`, `-`). Keep these files private: they hold customer names and product codes.

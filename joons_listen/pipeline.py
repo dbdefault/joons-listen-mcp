@@ -9,7 +9,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from . import audio, config, dictionary, diarize, engines, llm, outputs, vad, verify
+from . import audio, config, dictionary, diarize, engines, ensemble, llm, outputs, vad, verify
 
 
 class Cancelled(Exception):
@@ -108,35 +108,56 @@ def run(ctx: Ctx, mgr: engines.EngineManager) -> Dict:
         llm.unload()
     except Exception:  # noqa: BLE001
         pass
-    dic = dictionary.load()
+    dic = dictionary.load_for(p.get("customer"))
     hints = dictionary.hint_words(dic)
     rules = dictionary.merge_job_replace(dic, p.get("dictionary"))
     asr_path = ctx.dir / "asr.jsonl"
-    done: Dict[int, Dict] = {}
-    if asr_path.exists():
-        for line in asr_path.read_text(encoding="utf-8", errors="replace").splitlines():
-            if not line.strip():
-                continue
-            try:  # 강제 종료로 마지막 줄이 잘렸으면 그 줄만 버리고 해당 발언은 다시 전사한다
-                r = json.loads(line)
-                done[int(r["i"])] = r
-            except (ValueError, KeyError, TypeError):
-                continue
+    done = _load_done(asr_path)
     ctx.set_stage("asr", 0.0)
     req_lang = p.get("language", "auto")
     req_lang = None if req_lang in (None, "", "auto") else req_lang
     engine_pref = p.get("engine", "auto") or "auto"
-    chosen, doc_lang = _run_asr(ctx, mgr, arr, turns_j, done, asr_path, req_lang, engine_pref, hints)
+    ens = engine_pref == "ensemble"
+    alt: Dict[int, Dict] = {}
+    if ens:
+        # Same turns, two engines one after the other (one model on the 8 GB GPU at a time). Qwen is primary.
+        _, doc_lang = _run_asr(ctx, mgr, arr, turns_j, done, asr_path, req_lang, "qwen", hints, stage=(0.0, 0.5))
+        alt_path = ctx.dir / "asr_whisper.jsonl"
+        alt = _load_done(alt_path)
+        wl = doc_lang if doc_lang in ("zh", "ko", "en", "ja") else None
+        _run_asr(ctx, mgr, arr, turns_j, alt, alt_path, wl, "whisper", hints, stage=(0.5, 1.0))
+        chosen = "ensemble(qwen+whisper)"
+    else:
+        chosen, doc_lang = _run_asr(ctx, mgr, arr, turns_j, done, asr_path, req_lang, engine_pref, hints)
     mgr.unload_all()
     ctx.check()
 
     segments: List[Dict] = []
+    agrees: List[float] = []
     for i, t in enumerate(turns_j):
         r = done[i]
         raw = r.get("text", "")
         echo = dictionary.is_hint_echo(raw, hints)
         text = "" if echo else dictionary.apply_replace(raw, rules).strip()
-        segments.append({"i": i, "start": t["start"], "end": t["end"], "speaker": t["speaker"], "lang": r.get("lang"), "text": text, "text_ko": None, "confidence": r.get("conf"), "flags": ["hint_echo"] if echo else [], "audio": {"start": t["start"], "end": t["end"]}})
+        flags = ["hint_echo"] if echo else []
+        seg = {"i": i, "start": t["start"], "end": t["end"], "speaker": t["speaker"], "lang": r.get("lang"), "text": text, "text_ko": None, "confidence": r.get("conf"), "flags": flags, "audio": {"start": t["start"], "end": t["end"]}}
+        if ens:
+            w_raw = alt.get(i, {}).get("text", "")
+            w_text = "" if dictionary.is_hint_echo(w_raw, hints) else dictionary.apply_replace(w_raw, rules).strip()
+            m = ensemble.merge(text, w_text, hints)
+            seg["text"] = m["text"] if not echo else ""
+            seg["alts"] = {"qwen": text, "whisper": w_text}
+            seg["agree"] = m["agree"]
+            seg["conflicts"] = m["conflicts"][:20]
+            if (text or w_text) and m["agree"] < 0.6:
+                flags.append("engines_disagree")
+            if text or w_text:
+                agrees.append(m["agree"])
+        segments.append(seg)
+    if ens:
+        base["ensemble"] = {"engines": ["qwen", "whisper"], "primary": "qwen", "mean_agree": round(sum(agrees) / len(agrees), 3) if agrees else None,
+                            "segments_disagree": sum(1 for s in segments if "engines_disagree" in s["flags"]),
+                            "picked_secondary": sum(1 for s in segments for c in s.get("conflicts", []) if c["pick"] == "secondary")}
 
     # 5) verify
     ctx.set_stage("verify", 0.0)
@@ -229,7 +250,26 @@ def _detect_language(mgr: engines.EngineManager, arr: np.ndarray, turns: List[Di
     return engines.majority_language([r["language"] for r in res]), reuse
 
 
-def _run_asr(ctx: Ctx, mgr: engines.EngineManager, arr: np.ndarray, turns: List[Dict], done: Dict[int, Dict], asr_path: Path, req_lang: Optional[str], engine_pref: str, hints) -> Tuple[str, Optional[str]]:
+def _load_done(path: Path) -> Dict[int, Dict]:
+    done: Dict[int, Dict] = {}
+    if path.exists():
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            if not line.strip():
+                continue
+            try:  # 강제 종료로 마지막 줄이 잘렸으면 그 줄만 버리고 해당 발언은 다시 전사한다
+                r = json.loads(line)
+                done[int(r["i"])] = r
+            except (ValueError, KeyError, TypeError):
+                continue
+    return done
+
+
+def _run_asr(ctx: Ctx, mgr: engines.EngineManager, arr: np.ndarray, turns: List[Dict], done: Dict[int, Dict], asr_path: Path, req_lang: Optional[str], engine_pref: str, hints, stage: Tuple[float, float] = (0.0, 1.0)) -> Tuple[str, Optional[str]]:
+    lo, hi = stage
+
+    def prog(frac: float) -> None:
+        ctx.set_stage("asr", lo + (hi - lo) * frac)
+
     reuse: Dict[int, Dict] = {}
     lang = req_lang
     if lang is None and engine_pref == "auto":
@@ -250,14 +290,14 @@ def _run_asr(ctx: Ctx, mgr: engines.EngineManager, arr: np.ndarray, turns: List[
     eng = mgr.use(chosen)
     force = lang if lang in ("zh", "ko", "en", "ja") else None
     n_done = total - len(todo)
-    ctx.set_stage("asr", n_done / total)
+    prog(n_done / total)
     if chosen == "whisper":
         for i in todo:
             ctx.check()
             r = eng.transcribe(audio.slice_audio(arr, turns[i]["start"], turns[i]["end"]), force, hints)
             commit({"i": i, "text": r["text"], "lang": r["language"], "conf": r["confidence"]})
             n_done += 1
-            ctx.set_stage("asr", n_done / total)
+            prog(n_done / total)
     else:
         B = max(1, config.QWEN_BATCH)
         for b in range(0, len(todo), B):
@@ -267,7 +307,7 @@ def _run_asr(ctx: Ctx, mgr: engines.EngineManager, arr: np.ndarray, turns: List[
             for i, r in zip(grp, res):
                 commit({"i": i, "text": r["text"], "lang": r["language"], "conf": r["confidence"]})
             n_done += len(grp)
-            ctx.set_stage("asr", n_done / total)
+            prog(n_done / total)
     doc_lang = lang
     if doc_lang is None:
         doc_lang = engines.majority_language([d.get("lang") for d in done.values()])

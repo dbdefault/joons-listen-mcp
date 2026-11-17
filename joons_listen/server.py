@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
-from . import config, engines, jobs, llm, store_sync
+from . import config, dictionary, engines, jobs, llm, store_sync
 
 log = logging.getLogger("joons_listen.server")
 
@@ -173,12 +173,18 @@ class Service:
         if lang != "auto" and lang not in LANGS:
             raise ApiError(400, "BAD_REQUEST", "language must be auto|zh|ko|en|ja")
         eng = body.get("engine", "auto") or "auto"
-        if eng not in ("auto", "whisper", "qwen"):
-            raise ApiError(400, "BAD_REQUEST", "engine must be auto|whisper|qwen")
+        if eng not in ("auto", "whisper", "qwen", "ensemble"):
+            raise ApiError(400, "BAD_REQUEST", "engine must be auto|whisper|qwen|ensemble")
         ns = body.get("num_speakers")
         if ns is not None and (not isinstance(ns, int) or isinstance(ns, bool) or ns < 1 or ns > 12):
             raise ApiError(400, "BAD_REQUEST", "num_speakers must be an integer from 1 to 12")
-        params = {"audio_path": str(rp), "language": lang, "engine": eng, "diarize": bool(body.get("diarize", True)), "num_speakers": ns, "translate_ko": bool(body.get("translate_ko", False)), "minutes": bool(body.get("minutes", False)), "title": body.get("title"), "dictionary": body.get("dictionary")}
+        cust = body.get("customer") or None
+        if cust is not None:
+            try:
+                dictionary.customer_path(cust)
+            except ValueError as e:
+                raise ApiError(400, "BAD_REQUEST", str(e))
+        params = {"audio_path": str(rp), "language": lang, "engine": eng, "diarize": bool(body.get("diarize", True)), "num_speakers": ns, "translate_ko": bool(body.get("translate_ko", False)), "minutes": bool(body.get("minutes", False)), "title": body.get("title"), "dictionary": body.get("dictionary"), "customer": cust}
         return {"ok": True, "job_id": self.jobs.submit(kind, params)}
 
     def summarize(self, jid: str, body: Dict) -> Dict:

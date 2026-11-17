@@ -109,6 +109,7 @@ All settings are environment variables. The main ones:
 | `JOONS_LISTEN_MIRROR_DIR` | empty (off) | copy finished results (no audio) as zip files to this folder |
 | `JOONS_LISTEN_MIRROR_CMD` | empty (off) | instead of a folder, run this command per file: a JSON array such as `["rsync", "-a", "{file}", "host:/dir/"]`; `{file}` is replaced by the file path, no shell is used, the zip is sent before its `.ok` marker |
 | `JOONS_LISTEN_DICT` | `<data>/dictionary.json` | private dictionary, see `examples/dictionary.example.json` |
+| `JOONS_LISTEN_DICT_DIR` | `<data>/dictionaries` | per-customer dictionaries (`customer` job option) |
 
 ## Evaluation
 

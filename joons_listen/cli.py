@@ -48,7 +48,7 @@ def cmd_run(a) -> int:
         pass
     jm = jobs.JobManager()
     jm.start()
-    jid = jm.submit(a.kind, {"audio_path": a.audio, "language": a.language, "engine": a.engine, "diarize": not a.no_diarize, "translate_ko": a.translate, "minutes": a.minutes, "num_speakers": a.speakers, "title": a.title})
+    jid = jm.submit(a.kind, {"audio_path": a.audio, "language": a.language, "engine": a.engine, "diarize": not a.no_diarize, "translate_ko": a.translate, "minutes": a.minutes, "num_speakers": a.speakers, "title": a.title, "customer": a.customer})
     last = ""
     while True:
         j = jm.get(jid)
@@ -88,7 +88,8 @@ def main(argv=None) -> int:
     r.add_argument("audio")
     r.add_argument("--kind", default="transcribe", choices=["transcribe", "diarize"])
     r.add_argument("--language", default="auto")
-    r.add_argument("--engine", default="auto")
+    r.add_argument("--engine", default="auto", choices=["auto", "whisper", "qwen", "ensemble"])
+    r.add_argument("--customer", default=None, help="customer dictionary name (<data>/dictionaries/<name>.json)")
     r.add_argument("--no-diarize", action="store_true")
     r.add_argument("--translate", action="store_true")
     r.add_argument("--minutes", action="store_true")

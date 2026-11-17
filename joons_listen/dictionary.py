@@ -27,6 +27,25 @@ def load(path: Optional[Path] = None) -> Dict:
     return data
 
 
+_CUSTOMER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,63}$")
+
+
+def customer_path(name: str) -> Path:
+    """Per-customer dictionary file: <data>/dictionaries/<name>.json. Only plain names are accepted (no paths)."""
+    if not _CUSTOMER_RE.match(str(name or "")):
+        raise ValueError("customer must be 1-64 letters, digits, '_' or '-'")
+    return config.CUSTOMER_DICT_DIR / f"{name}.json"
+
+
+def load_for(customer: Optional[str] = None) -> Dict:
+    """Global dictionary plus the customer's own dictionary (customer entries first so they win the hint limit)."""
+    base = load()
+    if not customer:
+        return base
+    cust = load(customer_path(customer))
+    return {"terms": list(cust["terms"]) + list(base["terms"]), "replace": list(cust["replace"]) + list(base["replace"])}
+
+
 def save(data: Dict, path: Optional[Path] = None) -> None:
     p = Path(path) if path else config.DICT_PATH
     p.parent.mkdir(parents=True, exist_ok=True)

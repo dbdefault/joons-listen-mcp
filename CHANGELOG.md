@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `engine: "ensemble"`: run Qwen3-ASR and Whisper on the same turns and merge them with dictionary and number evidence; segments report `alts`, `agree` and `conflicts`.
+- `customer`: per-customer dictionaries in `<data>/dictionaries/<name>.json`, loaded before the global dictionary.
 - `JOONS_LISTEN_MIRROR_CMD`: send finished results with any command (JSON array, no shell) instead of a folder copy.
 - A job database from before the `mirror` rename (column `brain_sync`) is migrated in place on start.
 - Error and warning messages of the service, the CLI and the MCP server are now in English. Minutes output stays Korean by design.
