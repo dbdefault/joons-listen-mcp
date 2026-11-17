@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `POST /jobs/<id>/crosscheck` and the `listen_crosscheck` MCP tool: reference transcripts vote on ensemble conflicts, optional local-LLM arbitration, and a line-by-line meeting-notes check with a `crosscheck.md` report.
+- Ensemble results record the `customer` used, so a later cross-check reuses that dictionary.
 - `engine: "ensemble"`: run Qwen3-ASR and Whisper on the same turns and merge them with dictionary and number evidence; segments report `alts`, `agree` and `conflicts`.
 - `customer`: per-customer dictionaries in `<data>/dictionaries/<name>.json`, loaded before the global dictionary.
 - `JOONS_LISTEN_MIRROR_CMD`: send finished results with any command (JSON array, no shell) instead of a folder copy.

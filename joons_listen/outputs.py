@@ -127,6 +127,10 @@ def write_all(job_dir: Path, result: Dict) -> Dict[str, str]:
         "srt": ("subtitles.srt", to_srt(result)),
         "minutes": ("minutes.md", minutes_md(result)),
     }
+    if result.get("crosscheck"):
+        from .crosscheck import report_md
+
+        files["crosscheck"] = ("crosscheck.md", report_md(result))
     out: Dict[str, str] = {}
     for fmt, (name, body) in files.items():
         p = job_dir / name

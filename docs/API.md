@@ -12,6 +12,7 @@ The MCP server (`python -m joons_listen mcp`) is a thin wrapper around these end
   - `kind:"diarize"` returns speaker turns only (no transcript).
   - `audio_path` must be inside an allowed folder (`PATH_NOT_ALLOWED` otherwise, `FILE_NOT_FOUND` if missing). A bare file name is searched for in the allowed folders.
 - `POST /jobs/<id>/summarize` with `{style?:"minutes"|"brief", force?:bool}` returns `202 {ok:true, job_id:<new job id>}`: creates minutes or a summary from a finished transcription job.
+- `POST /jobs/<id>/crosscheck` with `{notes?:string, references?:[{name, text}], arbitrate?:bool, customer?:string}` returns `202 {ok:true, job_id}`: a new job with the same segments after the checks, plus `crosscheck:{customer, references, reference_vote, llm, notes}`. Read the report with `format=crosscheck`. At least one of notes, references or arbitrate is required; up to 5 references of 100000 characters each; the request body stays under 1 MB.
 - `GET /jobs` returns the 50 most recent jobs.
 - `GET /jobs/<id>` returns `{ok, job_id, kind, state:"queued"|"running"|"done"|"error"|"cancelled", stage, progress:0..100, error?:{code,message}, engine?, language?, duration_sec?, speakers?, title, created_at, updated_at, outputs:{json?,txt?,md?,srt?,minutes?}, mirror, warnings:[..]}`.
 - `GET /jobs/<id>/result?format=json|txt|md|srt|minutes&offset=0&max_chars=20000` returns `{ok, job_id, format, offset, next_offset|null, total_chars, text}`. `409 NOT_READY` if the job is not finished. `max_chars` is clamped to 1000..200000.
@@ -47,3 +48,11 @@ Qwen3-ASR and Whisper transcribe the same speaker turns one after the other (one
 ## Customer dictionaries (`customer`)
 
 `customer: "acme"` loads `<data>/dictionaries/acme.json` (same format as the global dictionary) in front of the global one. Names are plain words (letters, digits, `_`, `-`). Keep these files private: they hold customer names and product codes.
+
+## Cross-check (`POST /jobs/<id>/crosscheck`)
+
+Runs on a finished transcription (ensemble results get the most out of it). Nothing is confirmed automatically; every change records `resolved_by`.
+
+1. `references`: other transcripts of the same recording, for example from a cloud assistant. For each ensemble conflict, a candidate that appears in a reference while the other does not is chosen (`resolved_by: "reference:<name>"`). Numbers are compared after normalisation (一千四百五十 = 1450, 零点九六五 = 0.965).
+2. `arbitrate: true`: the local LLM picks A/B for up to 60 conflicts the references could not decide (`resolved_by: "llm"`); unsure answers keep the current text.
+3. `notes`: every line of the meeting notes that contains a number, a product code or a dictionary term is marked `ok`, `partial` or `not_found` with the times where each item was heard, and numbers and codes heard in the meeting but missing from the notes are listed (`missing_from_notes`).

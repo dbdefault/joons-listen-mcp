@@ -162,8 +162,10 @@ class JobManager:
                 self.stop.wait(1.0)
 
     def _default_runner(self, ctx: pipeline.Ctx, kind: str) -> Dict:
-        if kind == "summarize":
+        if kind in ("summarize", "crosscheck"):
             parent = json.loads((self.jobs_dir / ctx.params["parent_job_id"] / "result.json").read_text(encoding="utf-8"))
+            if kind == "crosscheck":
+                return pipeline.crosscheck_existing(ctx, parent)
             return pipeline.summarize_existing(ctx, parent)
         return pipeline.run(ctx, self.mgr)
 

@@ -59,6 +59,11 @@ def _t_summarize(a: Dict) -> Dict:
     return call_api("POST", f"/jobs/{jid}/summarize", _pick(a, ["style", "force"]))
 
 
+def _t_crosscheck(a: Dict) -> Dict:
+    jid = urllib.parse.quote(str(a.get("job_id", "")), safe="")
+    return call_api("POST", f"/jobs/{jid}/crosscheck", _pick(a, ["notes", "references", "arbitrate", "customer"]))
+
+
 def _t_status(a: Dict) -> Dict:
     if a.get("job_id"):
         return call_api("GET", "/jobs/" + urllib.parse.quote(str(a["job_id"]), safe=""))
@@ -83,8 +88,9 @@ TOOLS: List[Dict[str, Any]] = [
     {"name": "listen_transcribe", "description": "Queue a transcription job for a local audio file (Whisper large-v3 / Qwen3-ASR-1.7B, speaker labels, optional Korean translation and minutes). Returns a job_id immediately; poll listen_status, then fetch listen_result.", "fn": _t_transcribe, "schema": {"type": "object", "properties": {"audio_path": {**S, "description": "Path or bare file name inside an allowed folder"}, "language": {**S, "description": "auto|zh|ko|en"}, "engine": {**S, "description": "auto|whisper|qwen|ensemble (ensemble runs Qwen and Whisper on the same turns and merges them; about twice the time)"}, "diarize": B, "num_speakers": {**N, "description": "1-12"}, "translate_ko": B, "minutes": B, "title": S, "customer": {**S, "description": "Customer dictionary name (file <data>/dictionaries/<name>.json): hints and fixes for that customer's names, products and terms"}, "dictionary": {"type": "array", "items": {"type": "object", "properties": {"from": S, "to": S}, "required": ["from", "to"]}}}, "required": ["audio_path"]}, "ro": False},
     {"name": "listen_diarize", "description": "Queue a speaker-turn job (who spoke when, no transcript).", "fn": _t_diarize, "schema": {"type": "object", "properties": {"audio_path": S, "num_speakers": N, "title": S}, "required": ["audio_path"]}, "ro": False},
     {"name": "listen_summarize", "description": "Create minutes or a brief summary from a finished transcription job.", "fn": _t_summarize, "schema": {"type": "object", "properties": {"job_id": S, "style": {**S, "description": "minutes|brief"}, "force": B}, "required": ["job_id"]}, "ro": False},
+    {"name": "listen_crosscheck", "description": "Cross-check a finished transcription: other transcripts of the same recording (references) vote on ensemble conflicts, the local LLM can arbitrate the rest (arbitrate), and meeting notes are checked line by line against the transcript (notes). Returns a new job_id; fetch listen_result with format=crosscheck.", "fn": _t_crosscheck, "schema": {"type": "object", "properties": {"job_id": S, "notes": {**S, "description": "Meeting notes text to check against the recording"}, "references": {"type": "array", "items": {"type": "object", "properties": {"name": S, "text": S}, "required": ["text"]}, "description": "Up to 5 other transcripts of the same recording"}, "arbitrate": B, "customer": S}, "required": ["job_id"]}, "ro": False},
     {"name": "listen_status", "description": "Status of one job, or service health plus recent jobs when job_id is omitted.", "fn": _t_status, "schema": {"type": "object", "properties": {"job_id": S}}, "ro": True},
-    {"name": "listen_result", "description": "Read a finished job's result in chunks (format json|txt|md|srt|minutes).", "fn": _t_result, "schema": {"type": "object", "properties": {"job_id": S, "format": S, "offset": N, "max_chars": N}, "required": ["job_id"]}, "ro": True},
+    {"name": "listen_result", "description": "Read a finished job's result in chunks (format json|txt|md|srt|minutes|crosscheck).", "fn": _t_result, "schema": {"type": "object", "properties": {"job_id": S, "format": S, "offset": N, "max_chars": N}, "required": ["job_id"]}, "ro": True},
     {"name": "listen_models", "description": "List the engines, their state and the language routing.", "fn": _t_models, "schema": {"type": "object", "properties": {}}, "ro": True},
 ]
 _BY_NAME = {t["name"]: t for t in TOOLS}
